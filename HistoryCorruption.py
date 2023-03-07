@@ -2,8 +2,22 @@ import pymongo
 from pymongo import MongoClient
 
 
+class CorruptedHistoryRecords:
+    def __init__(self, records = []) -> None:
+        self.records = records
+        self.corruption_level = getCorruptionLevel(records=records)
+
+
 class HistoryRecord(dict):
     pass
+
+
+def getCorruptionLevel(records: list[HistoryRecord] = []) -> int:
+    if len(records) == 0:
+        return 0
+
+    return len(records) - records[-1]["otu"]["version"]
+
 
 
 def identifyIsCorrupted(records: list[HistoryRecord]) -> bool:
