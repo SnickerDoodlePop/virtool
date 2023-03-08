@@ -2,26 +2,31 @@ import pymongo
 from pymongo import MongoClient
 
 
-class CorruptedHistoryRecords:
-    def __init__(self, records=None) -> None:
-        if records is None:
-            records = []
+class EmptyHistoryRecords(Exception):
+    pass
 
-        self.records = records
-        self.corruption_level = getCorruptionLevel(records=records)
+    
+def expandRecordsByVersion(records: list) -> list:
+    expanded_records = [None]
+
+    for record in records:
+        version: int | str = record["otu"]["version"]
+
+        if version == "removed":
+            expanded_records.append(record)
+
+        else:
+            while len(expanded_records) < version:
+                expanded_records = expanded_records + ([None] * len(expanded_records))
+            
+            expanded_records.insert(version, record)
+
+    return expanded_records
 
 
-def getCorruptionLevel(records=None) -> int:
-    if records is None:
-        records = []
-
-    if len(records) == 0:
-        return 0
-
-    return len(records) - records[-1]["otu"]["version"]
 
 
-def identifyIsCorrupted(records: list) -> bool:
+def historyIsCorrupted(records: list) -> bool:
     for idx, record in enumerate(records):
         version = record["otu"]["version"]
 
@@ -78,7 +83,7 @@ def main(args: list[str]) -> None:
             groupedHistoryRecords[recordID] = []
             groupedHistoryRecords[recordID].append(record)
 
-    del history, record, recordID
+    del history
 
     # sort history record groups by otu version
     for key in groupedHistoryRecords:
@@ -90,9 +95,23 @@ def main(args: list[str]) -> None:
     corruptedHistoryRecords = {
         key: value
         for (key, value) in groupedHistoryRecords.items()
-        if identifyIsCorrupted(value)
+        if historyIsCorrupted(value)
     }
 
-    del groupedHistoryRecords, key
+    expanded_corrupted_history_records = {
+        key: expandRecordsByVersion(value)
+        for (key, value) in corruptedHistoryRecords.items()
+    }
 
-    pass
+    del groupedHistoryRecords, corruptedHistoryRecords
+
+    for value in expanded_corrupted_history_records.values():
+        for (index, record) in enumerate(value):
+            if record is None:
+                print(f"{index}: No Record")
+
+            else:
+                print("{}, {}".format(index, record["_id"]))
+
+        print("END OF HISTORY")
+        print("==============")
