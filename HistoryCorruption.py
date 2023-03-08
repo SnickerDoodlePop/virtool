@@ -3,24 +3,25 @@ from pymongo import MongoClient
 
 
 class CorruptedHistoryRecords:
-    def __init__(self, records = []) -> None:
+    def __init__(self, records=None) -> None:
+        if records is None:
+            records = []
+
         self.records = records
         self.corruption_level = getCorruptionLevel(records=records)
 
 
-class HistoryRecord(dict):
-    pass
+def getCorruptionLevel(records=None) -> int:
+    if records is None:
+        records = []
 
-
-def getCorruptionLevel(records: list[HistoryRecord] = []) -> int:
     if len(records) == 0:
         return 0
 
     return len(records) - records[-1]["otu"]["version"]
 
 
-
-def identifyIsCorrupted(records: list[HistoryRecord]) -> bool:
+def identifyIsCorrupted(records: list) -> bool:
     for idx, record in enumerate(records):
         version = record["otu"]["version"]
 
@@ -36,8 +37,8 @@ def identifyIsCorrupted(records: list[HistoryRecord]) -> bool:
     return False
 
 
-def getComparableOrderKey(x):
-    order = x["_id"].split(".")
+def getComparableOrderKey(record):
+    order = record["_id"].split(".")
 
     if order[-1] == "removed":
         return int(0xFFFFFFFF)
@@ -50,7 +51,7 @@ def getDBClient(address: str, port: int, maxPoolSize: int = 50) -> MongoClient:
 
 
 def main(args: list[str]) -> None:
-    ### cmd and debug arg parsing
+    # cmd and debug arg parsing
     debugArgs: list[str] = []
 
     args.extend(debugArgs)
@@ -58,38 +59,40 @@ def main(args: list[str]) -> None:
     if len(args) > 1:
         print(f"Running HistoryCorruption with args:\n {args}")
 
-    ### connect to db
+    # connect to db
     client: MongoClient = getDBClient(address="localhost", port=27017)
 
     history = client.get_database("virtool").get_collection("history")
 
-    groupedHistoryRecords: dict[int, HistoryRecord] = {}
+    groupedHistoryRecords: dict = {}
 
-    ### organize history records by integer component of `_id` field
+    # organize history records by integer component of `_id` field
     for record in list(history.find()):
-        id = record.get("_id").split(".")[0]
+        recordID = record.get("_id").split(".")[0]
 
         try:
             # will throw KeyError if no list has been defined
-            groupedHistoryRecords[id].append(record)
+            groupedHistoryRecords[recordID].append(record)
 
         except KeyError:
-            groupedHistoryRecords[id] = []
-            groupedHistoryRecords[id].append(record)
+            groupedHistoryRecords[recordID] = []
+            groupedHistoryRecords[recordID].append(record)
 
-    del history
+    del history, record, recordID
 
-    ## sort history record groups by otu version
+    # sort history record groups by otu version
     for key in groupedHistoryRecords:
         groupedHistoryRecords[key] = sorted(
             groupedHistoryRecords[key], key=getComparableOrderKey
         )
 
-    ## filter only corrupted history records
+    # filter only corrupted history records
     corruptedHistoryRecords = {
         key: value
         for (key, value) in groupedHistoryRecords.items()
         if identifyIsCorrupted(value)
     }
+
+    del groupedHistoryRecords, key
 
     pass
