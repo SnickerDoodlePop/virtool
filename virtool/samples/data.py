@@ -8,7 +8,7 @@ import virtool_core.utils
 from motor.motor_asyncio import AsyncIOMotorClientSession
 from pymongo.results import UpdateResult
 from sqlalchemy.ext.asyncio import AsyncEngine
-from virtool_core.models.samples import SampleSearchResult, Sample
+from virtool_core.models.samples import Sample, SampleSearchResult
 
 import virtool.utils
 from virtool.api.utils import compose_regex_query
@@ -22,15 +22,15 @@ from virtool.mongo.transforms import apply_transforms
 from virtool.mongo.utils import get_new_id, get_one_field
 from virtool.samples.checks import (
     check_labels_do_not_exist,
-    check_subtractions_do_not_exist,
     check_name_is_in_use,
+    check_subtractions_do_not_exist,
 )
 from virtool.samples.db import (
-    compose_sample_workflow_query,
     LIST_PROJECTION,
     ArtifactsAndReadsTransform,
-    validate_force_choice_group,
+    compose_sample_workflow_query,
     define_initial_workflows,
+    validate_force_choice_group,
 )
 from virtool.samples.oas import CreateSampleRequest, UpdateSampleRequest
 from virtool.samples.utils import SampleRight, join_sample_path

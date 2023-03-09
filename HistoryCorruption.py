@@ -5,7 +5,7 @@ from pymongo import MongoClient
 class EmptyHistoryRecords(Exception):
     pass
 
-    
+
 def expandRecordsByVersion(records: list) -> list:
     expanded_records = [None]
 
@@ -18,12 +18,10 @@ def expandRecordsByVersion(records: list) -> list:
         else:
             while len(expanded_records) < version:
                 expanded_records = expanded_records + ([None] * len(expanded_records))
-            
+
             expanded_records.insert(version, record)
 
     return expanded_records
-
-
 
 
 def historyIsCorrupted(records: list) -> bool:
@@ -106,7 +104,7 @@ def main(args: list[str]) -> None:
     del groupedHistoryRecords, corruptedHistoryRecords
 
     for value in expanded_corrupted_history_records.values():
-        for (index, record) in enumerate(value):
+        for index, record in enumerate(value):
             if record is None:
                 print(f"{index}: No Record")
 

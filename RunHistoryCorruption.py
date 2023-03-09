@@ -1,4 +1,5 @@
 import sys
+
 import HistoryCorruption
 
 if __name__ == "__main__":
