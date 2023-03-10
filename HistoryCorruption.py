@@ -6,7 +6,34 @@ class EmptyHistoryRecords(Exception):
     pass
 
 
-def expandRecordsByVersion(records: list) -> list:
+def reconstructRecordFromDiff(record: dict = {}) -> dict:
+    lost_record = {}
+
+def canBeRestored(records: list = []) -> bool:
+    for index, record in enumerate(records):
+        # if history record is missing
+        if record is None:
+            try:
+                if index == (len(records) - 1):
+                    return False
+                
+                elif records[index - 1] is None:
+                    return False
+
+                else:
+                    continue
+
+            # first history record is missing; check next
+            except IndexError:
+                continue
+
+        else:
+            continue
+
+    return True
+
+
+def expandRecordIDXByVersion(records: list = []) -> list:
     expanded_records = [None]
 
     for record in records:
@@ -44,72 +71,78 @@ def getComparableOrderKey(record):
     order = record["_id"].split(".")
 
     if order[-1] == "removed":
+        # big number lol
         return int(0xFFFFFFFF)
     else:
         return int(order[-1])
 
 
-def getDBClient(address: str, port: int, maxPoolSize: int = 50) -> MongoClient:
-    return pymongo.MongoClient("localhost", 27017, maxPoolSize=50)
-
-
 def main(args: list[str]) -> None:
-    # cmd and debug arg parsing
-    debugArgs: list[str] = []
-
-    args.extend(debugArgs)
-
     if len(args) > 1:
         print(f"Running HistoryCorruption with args:\n {args}")
 
-    # connect to db
-    client: MongoClient = getDBClient(address="localhost", port=27017)
 
+    
+    # ---------------------------------------------------------------------- #
+    # obtaining and sorting the otu history records
+
+    # connect to db
+    client: MongoClient = pymongo.MongoClient("localhost", 27017, maxPoolSize=50)
+
+    # grab the otu history records
     history = client.get_database("virtool").get_collection("history")
 
-    groupedHistoryRecords: dict = {}
+    grouped_history_records: dict = {}
 
-    # organize history records by integer component of `_id` field
+    # organize history records by otu id
     for record in list(history.find()):
-        recordID = record.get("_id").split(".")[0]
+        otuID = record.get("_id").split(".")[0]
 
         try:
             # will throw KeyError if no list has been defined
-            groupedHistoryRecords[recordID].append(record)
+            grouped_history_records[otuID].append(record)
 
         except KeyError:
-            groupedHistoryRecords[recordID] = []
-            groupedHistoryRecords[recordID].append(record)
+            grouped_history_records[otuID] = []
+            grouped_history_records[otuID].append(record)
 
     del history
 
+    # ---------------------------------------------------------------------- #
+
+
+
+    # ---------------------------------------------------------------------- #
+    # we do a bunch of filtering
+
     # sort history record groups by otu version
-    for key in groupedHistoryRecords:
-        groupedHistoryRecords[key] = sorted(
-            groupedHistoryRecords[key], key=getComparableOrderKey
+    for key in grouped_history_records:
+        grouped_history_records[key] = sorted(
+            grouped_history_records[key], key=getComparableOrderKey
         )
 
     # filter only corrupted history records
-    corruptedHistoryRecords = {
+    grouped_history_records = {
         key: value
-        for (key, value) in groupedHistoryRecords.items()
+        for (key, value) in grouped_history_records.items()
         if historyIsCorrupted(value)
     }
 
-    expanded_corrupted_history_records = {
-        key: expandRecordsByVersion(value)
-        for (key, value) in corruptedHistoryRecords.items()
+    # expand records into list that allocates space for missing records
+    grouped_history_records = {
+        key: expandRecordIDXByVersion(value)
+        for (key, value) in grouped_history_records.items()
     }
 
-    del groupedHistoryRecords, corruptedHistoryRecords
+    # filter only recoverable missing history records
+    grouped_history_records = {
+        key: value
+        for (key, value) in grouped_history_records.items()
+        if canBeRestored(value)
+    }
 
-    for value in expanded_corrupted_history_records.values():
-        for index, record in enumerate(value):
-            if record is None:
-                print(f"{index}: No Record")
+    # ---------------------------------------------------------------------- #
 
-            else:
-                print("{}, {}".format(index, record["_id"]))
+    pass
 
-        print("END OF HISTORY")
-        print("==============")
+    reconstructRecordFromDiff(grouped_history_records["c1f82472"][4])
