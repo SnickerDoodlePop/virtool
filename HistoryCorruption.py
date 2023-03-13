@@ -52,12 +52,10 @@ def canRestoreCollection(records: list = []) -> bool:
     
     else:
         return False if (len(records) == sum(map(lambda record: record is None, records))) else True
-        
-
 
 
 def expandRecordIDXByVersion(records: list = []) -> list:
-    expanded_records = [None]
+    expanded_records = []
 
     for record in records:
         version: int | str = record["otu"]["version"]
@@ -67,7 +65,7 @@ def expandRecordIDXByVersion(records: list = []) -> list:
 
         else:
             while len(expanded_records) < version:
-                expanded_records = expanded_records + ([None] * len(expanded_records))
+                expanded_records = expanded_records + [None]
 
             expanded_records.insert(version, record)
 
@@ -75,19 +73,7 @@ def expandRecordIDXByVersion(records: list = []) -> list:
 
 
 def historyIsCorrupted(records: list) -> bool:
-    for idx, record in enumerate(records):
-        version = record["otu"]["version"]
-
-        if version == "removed":
-            return False if idx == (len(records) - 1) else True
-
-        elif version != idx:
-            return True
-
-        else:
-            continue
-
-    return False
+    return True if None in records else False
 
 
 def getComparableOrderKey(record):
@@ -104,8 +90,6 @@ def main(args: list[str]) -> None:
     if len(args) > 1:
         print(f"Running HistoryCorruption with args:\n {args}")
 
-
-    
     # ---------------------------------------------------------------------- #
     # obtaining and sorting the otu history records
 
@@ -115,7 +99,7 @@ def main(args: list[str]) -> None:
     # grab the otu history records
     history = client.get_database("virtool").get_collection("history")
 
-    history_collections: dict = {}
+    history_collections = {}
 
     # organize history records by otu id
     for record in list(history.find()):
@@ -143,6 +127,12 @@ def main(args: list[str]) -> None:
             history_collections[key], key=getComparableOrderKey
         )
 
+    # expand records into list that allocates space for missing records
+    history_collections = {
+        key: expandRecordIDXByVersion(value)
+        for (key, value) in history_collections.items()
+    }
+
     # filter only corrupted history collections
     history_collections = {
         key: value
@@ -150,14 +140,9 @@ def main(args: list[str]) -> None:
         if historyIsCorrupted(value)
     }
 
-    # expand records into list that allocates space for missing records
-    history_collections = {
-        key: expandRecordIDXByVersion(value)
-        for (key, value) in history_collections.items()
-    }
 
     # filter only restorable collections
-    restorable_corrupted_history_collections: dict = {
+    restorable_corrupted_history_collections = {
         key: value
         for (key, value) in history_collections.items()
         if canRestoreCollection(value)
@@ -165,15 +150,15 @@ def main(args: list[str]) -> None:
 
     del history_collections
 
-    simple_corrupted_history_collections: dict = dict()
-    complex_corrupted_history_collections: dict = dict()
+    simple_corrupted_history_collections = {}
+    complex_corrupted_history_collections = {}
     
     for (key, value) in restorable_corrupted_history_collections.items():
         if canBeSimplyRestored(value):
-            simple_corrupted_history_collections.update({key: value})
+            simple_corrupted_history_collections[key] = value
         
         else:
-            complex_corrupted_history_collections.update({key: value})
+            complex_corrupted_history_collections[key] = value
 
     del restorable_corrupted_history_collections
 
