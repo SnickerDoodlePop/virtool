@@ -2,35 +2,58 @@ import pymongo
 from pymongo import MongoClient
 
 
+class UncorruptedCollection(Exception):
+    pass
+
+
 class EmptyHistoryRecords(Exception):
     pass
 
 
-def reconstructRecordFromDiff(record: dict = {}) -> dict:
-    lost_record = {}
+def canBeSimplyRestored(records: list = []) -> bool:
+    """
+    Determines if a corrupted collection of otu history records can be simply restored
 
-def canBeRestored(records: list = []) -> bool:
-    for index, record in enumerate(records):
-        # if history record is missing
-        if record is None:
-            try:
-                if index == (len(records) - 1):
-                    return False
-                
-                elif records[index - 1] is None:
-                    return False
+        Parameters:
+            records (list): the collection of otu history records
 
-                else:
-                    continue
+        Returns:
+            False: The collection contains multiple corrupted records
+            True: The collection contains only 1 corrupted records
+    """
+    corruption_level = sum(map(lambda record: record is None, records))
 
-            # first history record is missing; check next
-            except IndexError:
-                continue
+    if corruption_level == 0:
+        raise UncorruptedCollection()
+    
+    else:
+        return True if (corruption_level == 1) else False
 
-        else:
-            continue
 
-    return True
+def canRestoreCollection(records: list = []) -> bool:
+    """
+    Determines if a corrupted collection of otu history records can be restored
+
+        Parameters:
+            records (list): the collection of otu history records
+
+        Returns:
+            False: The length of the collection is zero, or all elements in the collection are None
+            True: The collection contains atleast 1 non-None entry 
+
+        Raises:
+            EmptyHistoryRecords: parameter "records" is None
+    """
+    if records is None:
+        raise EmptyHistoryRecords()
+    
+    elif len(records) == 0:
+        return False
+    
+    else:
+        return False if (len(records) == sum(map(lambda record: record is None, records))) else True
+        
+
 
 
 def expandRecordIDXByVersion(records: list = []) -> list:
@@ -92,19 +115,18 @@ def main(args: list[str]) -> None:
     # grab the otu history records
     history = client.get_database("virtool").get_collection("history")
 
-    grouped_history_records: dict = {}
+    history_collections: dict = {}
 
     # organize history records by otu id
     for record in list(history.find()):
         otuID = record.get("_id").split(".")[0]
 
         try:
-            # will throw KeyError if no list has been defined
-            grouped_history_records[otuID].append(record)
+            history_collections[otuID].append(record)
 
+        # define a new collection of history records if one does not exist at the current otuID
         except KeyError:
-            grouped_history_records[otuID] = []
-            grouped_history_records[otuID].append(record)
+            history_collections[otuID] = [record]
 
     del history
 
@@ -115,34 +137,46 @@ def main(args: list[str]) -> None:
     # ---------------------------------------------------------------------- #
     # we do a bunch of filtering
 
-    # sort history record groups by otu version
-    for key in grouped_history_records:
-        grouped_history_records[key] = sorted(
-            grouped_history_records[key], key=getComparableOrderKey
+    # sort history records into collections by otu id
+    for key in history_collections:
+        history_collections[key] = sorted(
+            history_collections[key], key=getComparableOrderKey
         )
 
-    # filter only corrupted history records
-    grouped_history_records = {
+    # filter only corrupted history collections
+    history_collections = {
         key: value
-        for (key, value) in grouped_history_records.items()
+        for (key, value) in history_collections.items()
         if historyIsCorrupted(value)
     }
 
     # expand records into list that allocates space for missing records
-    grouped_history_records = {
+    history_collections = {
         key: expandRecordIDXByVersion(value)
-        for (key, value) in grouped_history_records.items()
+        for (key, value) in history_collections.items()
     }
 
-    # filter only recoverable missing history records
-    grouped_history_records = {
+    # filter only restorable collections
+    restorable_corrupted_history_collections: dict = {
         key: value
-        for (key, value) in grouped_history_records.items()
-        if canBeRestored(value)
+        for (key, value) in history_collections.items()
+        if canRestoreCollection(value)
     }
+
+    del history_collections
+
+    simple_corrupted_history_collections: dict = dict()
+    complex_corrupted_history_collections: dict = dict()
+    
+    for (key, value) in restorable_corrupted_history_collections.items():
+        if canBeSimplyRestored(value):
+            simple_corrupted_history_collections.update({key: value})
+        
+        else:
+            complex_corrupted_history_collections.update({key: value})
+
+    del restorable_corrupted_history_collections
 
     # ---------------------------------------------------------------------- #
 
     pass
-
-    reconstructRecordFromDiff(grouped_history_records["c1f82472"][4])
