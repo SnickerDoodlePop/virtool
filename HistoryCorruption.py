@@ -25,7 +25,7 @@ def canBeSimplyRestored(records: list = []) -> bool:
 
     if corruption_level == 0:
         raise UncorruptedCollection()
-    
+
     else:
         return True if (corruption_level == 1) else False
 
@@ -39,19 +39,23 @@ def canRestoreCollection(records: list = []) -> bool:
 
         Returns:
             False: The length of the collection is zero, or all elements in the collection are None
-            True: The collection contains atleast 1 non-None entry 
+            True: The collection contains atleast 1 non-None entry
 
         Raises:
             EmptyHistoryRecords: parameter "records" is None
     """
     if records is None:
         raise EmptyHistoryRecords()
-    
+
     elif len(records) == 0:
         return False
-    
+
     else:
-        return False if (len(records) == sum(map(lambda record: record is None, records))) else True
+        return (
+            False
+            if (len(records) == sum(map(lambda record: record is None, records)))
+            else True
+        )
 
 
 def expandRecordIDXByVersion(records: list = []) -> list:
@@ -116,8 +120,6 @@ def main(args: list[str]) -> None:
 
     # ---------------------------------------------------------------------- #
 
-
-
     # ---------------------------------------------------------------------- #
     # we do a bunch of filtering
 
@@ -140,7 +142,6 @@ def main(args: list[str]) -> None:
         if historyIsCorrupted(value)
     }
 
-
     # filter only restorable collections
     restorable_corrupted_history_collections = {
         key: value
@@ -148,15 +149,20 @@ def main(args: list[str]) -> None:
         if canRestoreCollection(value)
     }
 
+    # ---------------------------------------------------------------------- #
+
+    # ---------------------------------------------------------------------- #
+    # sort collections by corruption complexity
+
     del history_collections
 
     simple_corrupted_history_collections = {}
     complex_corrupted_history_collections = {}
-    
-    for (key, value) in restorable_corrupted_history_collections.items():
+
+    for key, value in restorable_corrupted_history_collections.items():
         if canBeSimplyRestored(value):
             simple_corrupted_history_collections[key] = value
-        
+
         else:
             complex_corrupted_history_collections[key] = value
 
